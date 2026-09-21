@@ -72,23 +72,31 @@ abstract class BaseLearningApplication : Application() {
         // You MUST initialize the SDK in your Application's onCreate to ensure correct
         // functionality when the app is launched from a background service (receiving push message,
         // entering a geofence, ...)
-        SFMCSdk.configure(applicationContext as Application, sdkConfigBuilder) { initStatus ->
-            when (initStatus.status) {
-                InitializationStatus.SUCCESS -> {
-                    Log.v(LOG_TAG, "Marketing Cloud initialization successful.")
-                }
+        //
+        // --- DECATHLON REPRO: intentionally invoking configure() twice in quick succession ---
+        // This is the ONLY change made to this file/project. Everything else is the stock
+        // Salesforce LearningApp, using real MobilePush credentials. The goal is to demonstrate
+        // that calling the public SFMCSdk.configure() entry point twice in a row is enough to
+        // reproduce the SQLite/Keystore crash reported against our own app, with zero app-level
+        // business logic involved.
+        repeat(2) { attempt ->
+            Log.d(LOG_TAG, "\uD83D\uDD14 [REPRO] Calling SFMCSdk.configure() - attempt #$attempt")
+            SFMCSdk.configure(applicationContext as Application, sdkConfigBuilder) { initStatus ->
+                when (initStatus.status) {
+                    InitializationStatus.SUCCESS -> {
+                        Log.v(LOG_TAG, "\uD83D\uDD14 [REPRO] Marketing Cloud initialization successful (attempt #$attempt).")
+                    }
 
-                InitializationStatus.FAILURE -> {
-                    // Given that this app is used to show SDK functionality we will hard exit if SDK init outright failed.
-                    Log.e(
-                        LOG_TAG,
-                        "Marketing Cloud initialization failed.  Exiting Learning App with exception."
-                    )
-                    throw RuntimeException("Init failed")
-
+                    InitializationStatus.FAILURE -> {
+                        Log.e(
+                            LOG_TAG,
+                            "\uD83D\uDD14 [REPRO] Marketing Cloud initialization failed (attempt #$attempt)."
+                        )
+                    }
                 }
             }
         }
+        // --- END DECATHLON REPRO ---
 
         InAppMessagingFeature.requestSdk { it ->
 
