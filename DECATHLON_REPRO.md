@@ -43,15 +43,29 @@ See the diff on this branch (`repro/double-configure-crash`) relative to
 6/6 crashes across 6 independent fresh-install runs on two different
 devices (one emulator, one physical Pixel 9), with two distinct concrete
 exceptions surfacing from the same missing synchronization inside
-`SFMCSdk.configure()`. This was validated on SDK `9.0.3` (core `SFMCSdk
-v1.0.5`); the repro logic on this branch has since been rebased onto the
-latest `master` (SDK `11.0.+`, core `SFMCSdk v1.0.6`), the exact version
-range used in Decathlon's production app.
+`SFMCSdk.configure()`. This was first validated on SDK `9.0.3` (core
+`SFMCSdk v1.0.5`); the repro logic on this branch has since been rebased
+onto the latest `master` (SDK `11.0.+`, core `SFMCSdk v1.0.6`), the exact
+version range used in Decathlon's production app, and **re-validated 5/5
+on a freshly wiped emulator** (`emulator -wipe-data`) — same signature
+(`KeyStoreException: Key not found` → `NullPointerException:
+getEncryptionKey(...)`).
 
-| Device | Runs | Crashes | Signature(s) observed |
+| Device / SDK | Runs | Crashes | Signature(s) observed |
 |---|---|---|---|
-| Emulator (Pixel 3a AVD) | 3 | 3/3 | `KeyStoreException: Key not found` → `NullPointerException: getEncryptionKey(...)` |
-| Physical device (Pixel 9) | 3 | 3/3 | `IllegalBlockSizeException` (2/3) and `KeyStoreException: Key not found` (1/3) → `NullPointerException: getEncryptionKey(...)` |
+| Emulator (Pixel 3a AVD), SDK 9.0.3 | 3 | 3/3 | `KeyStoreException: Key not found` → `NullPointerException: getEncryptionKey(...)` |
+| Physical device (Pixel 9), SDK 9.0.3 | 3 | 3/3 | `IllegalBlockSizeException` (2/3) and `KeyStoreException: Key not found` (1/3) → `NullPointerException: getEncryptionKey(...)` |
+| Emulator (Pixel 3a AVD, **freshly wiped**), SDK 11.0.+ (`master`) | 5 | 5/5 | `KeyStoreException: Key not found` → `NullPointerException: getEncryptionKey(...)` |
+
+⚠️ **Testing note:** a plain `adb uninstall` is not always enough to reset
+the Keystore-key race window on a device that has already run this repro
+before — on a physical device we'd hammered with earlier test runs, we
+briefly got 0/3 "crashes" after rebasing onto SDK 11.0.+, which looked like
+the newer SDK might have fixed the race. Re-testing on a **freshly wiped**
+emulator (`emulator -avd <name> -wipe-data`) immediately reproduced 5/5,
+confirming the SDK version wasn't the reason it stopped crashing — stale
+Keystore state on the device was. Always use a genuinely fresh device/AVD
+(wiped, not just uninstalled) when attempting this reproduction.
 
 Every frame in the resulting stack traces is inside
 `com.salesforce.marketingcloud.sfmcsdk.*` and Android's own
